@@ -1,6 +1,7 @@
-from tkinter.constants import CENTER, DISABLED, E, GROOVE, RAISED, RIDGE, SUNKEN
+from tkinter.constants import CENTER, DISABLED, FLAT, SOLID, GROOVE, RAISED, RIDGE, SUNKEN
 from tkinter import filedialog as fd
 from tkinter import ttk
+from typing import Text
 import RPi.GPIO as GPIO
 import tkinter as tk
 from datetime import datetime
@@ -8,24 +9,24 @@ from PIL import ImageTk, Image
 from pathlib import Path
 import time
 import os
-import sys
+import json
 
 # export DISPLAY=localhost:10.0
 
 # GPIO Setup
-SimOut       = [11, 13, 15] # Output signal to RPis
-InPins       = [18, 36, 40]
-LEDPins      = [16, 32, 38] # LED pins
-TriggerReset = 22
-TriggerLatch = 29
-EndEvent     = 31
-Error_LED    = 38
-Trig_0_LED   = 37
+SimOut        = [11, 13, 15] # Output signal to RPis
+InPins        = [18, 36, 40]
+TriggerEnable = [16, 32, 38]
+TriggerReset  = 22
+TriggerLatch  = 29
+EndEvent      = 31
+Error_LED     = 38
+Trig_0_LED    = 37
 
 GPIO.setmode(GPIO.BOARD) # use Physical GPIO Numbering
 GPIO.setup(InPins, GPIO.IN)
-GPIO.setup(LEDPins, GPIO.OUT)
-GPIO.output(LEDPins, GPIO.LOW)
+GPIO.setup(TriggerEnable, GPIO.OUT)
+GPIO.output(TriggerEnable, GPIO.LOW)
 GPIO.setup(SimOut, GPIO.OUT)
 GPIO.output(SimOut, GPIO.LOW)
 GPIO.setup(Error_LED, GPIO.OUT)
@@ -45,8 +46,10 @@ tk_root.title('Event Builder')
 tabControl = ttk.Notebook(tk_root)
 tab1 = ttk.Frame(tabControl)
 tab2 = ttk.Frame(tabControl)
+tab3 = ttk.Frame(tabControl)
 tabControl.add(tab1, text='Event run')
-tabControl.add(tab2, text='Image Viewer')
+tabControl.add(tab2, text='Camera Settings')
+tabControl.add(tab3, text='Image Viewer')
 tabControl.pack(expand=1, fill='both')
 padx = 4
 pady = 4
@@ -57,48 +60,53 @@ pady = 4
 class EB:
     def __init__(self, master):
         self.master = master
-        self.max_time_entry = ttk.Spinbox(master=self.master, width=10, from_=0, to=float('inf'), increment=1, format='%10.4f')
-        self.max_time_entry.insert(0, 5) # setting default max_time to 5 seconds
-        self.max_time_entry.grid(row=0, column=1, padx=padx, pady=pady)
 
-        ttk.Label(self.master, text='Maxium Event Time: ').grid(row=0, column=0)
+        self.trig_enable_time_entry = ttk.Spinbox(master=self.master, width=10, from_=0, to=float('inf'), increment=1, format='%10.4f')
+        self.trig_enable_time_entry.insert(0, 5) # setting default trig_enable_time to 5 seconds
+        self.trig_enable_time_entry.grid(row=0, column=1, padx=padx, pady=pady)
+        ttk.Label(self.master, text='Trigger Enable Time: ').grid(row=0, column=0)
+
+        self.max_time_entry = ttk.Spinbox(master=self.master, width=10, from_=0, to=float('inf'), increment=1, format='%10.4f')
+        self.max_time_entry.insert(0, 10) # setting default max_time to 10 seconds
+        self.max_time_entry.grid(row=1, column=1, padx=padx, pady=pady)
+        ttk.Label(self.master, text='Maxium Event Time: ').grid(row=1, column=0)
 
         self.show_time = tk.StringVar()
         self.show_time.set('Event Time: ' +str(0))
         self.display_time = ttk.Label(self.master, textvariable=self.show_time, relief=SUNKEN, width=16, padding=pady)
-        self.display_time.grid(row=1, column=0, padx=padx, pady=pady)
+        self.display_time.grid(row=11, column=0, padx=padx, pady=pady)
 
         self.buttonstart = ttk.Button(self.master, text='Start Event', command=self.run_event)
-        self.buttonstart.grid(row=2, column=0, padx=padx, pady=pady)
+        self.buttonstart.grid(row=12, column=0, padx=padx, pady=pady)
 
         self.buttonmantrig = ttk.Button(self.master, text='Stop Event', state=DISABLED)
-        self.buttonmantrig.grid(row=3, column=0, padx=padx, pady=pady)
+        self.buttonmantrig.grid(row=13, column=0, padx=padx, pady=pady)
         
         self.buttonquit = ttk.Button(self.master, text='Quit', command=self.leave)
-        self.buttonquit.grid(row=4, column=0, padx=padx, pady=pady)
+        self.buttonquit.grid(row=14, column=0, padx=padx, pady=pady)
 
         status_label = ttk.Label(self.master, text='RPi Status', relief=RIDGE, width=12, padding=pady, justify=CENTER)
-        status_label.grid(row=1, column=1, padx=4*padx, pady=pady)
+        status_label.grid(row=11, column=1, padx=4*padx, pady=pady)
         for i in range(len(InPins)):
             self.set_status_neutral(i+1)
 
         self.error = ttk.Label(self.master, text='  ')
-        self.error.grid(row=5, column=0, padx=padx, pady=pady)
+        self.error.grid(row=25, column=0, padx=padx, pady=pady)
 
         self.trig_0_state = False
         self.event_time = 0
         
     def set_status_neutral(self, cam):
         status = ttk.Label(self.master, text='Cam_'+str(cam), relief=SUNKEN, padding=pady, background='gray')
-        status.grid(row=cam+1, column=1, padx=padx, pady=pady)
+        status.grid(row=cam+11, column=1, padx=padx, pady=pady)
 
     def set_status_on(self, cam):
         status = ttk.Label(self.master, text='Cam_'+str(cam), relief=SUNKEN, padding=pady, background='green')
-        status.grid(row=cam+1, column=1, padx=padx, pady=pady)
+        status.grid(row=cam+11, column=1, padx=padx, pady=pady)
 
     def set_status_off(self, cam):
         status = ttk.Label(self.master, text='Cam_'+str(cam), relief=SUNKEN, padding=pady, background='red')
-        status.grid(row=cam+1, column=1, padx=padx, pady=pady)
+        status.grid(row=cam+11, column=1, padx=padx, pady=pady)
 
     # Helper for fifo_signal and iterate: returns false if all InPins are not recieving a high signal
     def check_in_pins(self):
@@ -113,6 +121,14 @@ class EB:
             if GPIO.input(InPins[i]):
                 return False
         return True
+
+    def send_trig_enable(self):
+        for i in range(len(TriggerEnable)):
+            GPIO.output(TriggerEnable[i], GPIO.HIGH)
+
+    def disable_trig_enable(self):
+        for i in range(len(TriggerEnable)):
+            GPIO.output(TriggerEnable[i], GPIO.LOW)
 
     # # Check if trigger latch is enabled
     # def check_latch(self):
@@ -130,13 +146,12 @@ class EB:
     def fifo_signal(self):
         for i in range(100):
             if (self.check_in_pins()): # input signals from RPis
-                # need to add: send output signal to arduino once all RPi_State == Active
-                for i in range(len(LEDPins)): # Just turning on the LEDs here
-                    GPIO.output(LEDPins[i], GPIO.HIGH)
+                # need to add (?): send output signal to arduino once all RPi_State == Active
+                for i in range(len(InPins)):
                     self.set_status_on(i+1)
                 self.buttonstart.grid_forget()
                 self.buttonstart = ttk.Button(self.master, text='Start Event', state=DISABLED)
-                self.buttonstart.grid(row=2, column=0, padx=padx, pady=pady)
+                self.buttonstart.grid(row=12, column=0, padx=padx, pady=pady)
                 make_folder()
                 self.trig_0_state = False
                 return False
@@ -170,7 +185,7 @@ class EB:
     def run_event(self):
         self.error.grid_forget()
         self.error = ttk.Label(self.master, text='  ')
-        self.error.grid(row=5, column=0, padx=padx, pady=pady)
+        self.error.grid(row=25, column=0, padx=padx, pady=pady)
         for i in range(len(SimOut)):
             GPIO.output(SimOut[i], GPIO.HIGH)
         self.latch_status = GPIO.input(TriggerLatch)
@@ -181,23 +196,24 @@ class EB:
             try:
                 self.max_time = float(self.max_time_entry.get())
                 self.send_trig_reset()
-                for i in range(len(SimOut)):
-                    GPIO.output(SimOut[i], GPIO.HIGH)
+                # for i in range(len(SimOut)):
+                #     GPIO.output(SimOut[i], GPIO.HIGH)
                 self.buttonmantrig.grid_forget()
                 self.buttonmantrig = ttk.Button(self.master, text='Stop Event', command=self.set_trig)
-                self.buttonmantrig.grid(row=3, column=0, padx=padx, pady=pady)
+                self.buttonmantrig.grid(row=13, column=0, padx=padx, pady=pady)
                 # self.trig_0_state = self.fifo_signal()
                 self.tic = time.perf_counter()
+                self.master.after(int(float(self.trig_enable_time_entry.get())*1000), self.send_trig_enable)
                 self.iterate()
             except ValueError:
                 self.error = ttk.Label(self.master, text='Error: Invalid input!')
-                self.error.grid(row=5, column=0, padx=padx, pady=pady)
+                self.error.grid(row=25, column=0, padx=padx, pady=pady)
                 for i in range(len(SimOut)):
                     GPIO.output(SimOut[i], GPIO.LOW)
         else:
             self.error.grid_forget()
             self.error = ttk.Label(self.master, text='')
-            self.error.grid(row=5, column=0, padx=padx, pady=pady)
+            self.error.grid(row=25, column=0, padx=padx, pady=pady)
             if self.latch_status:
                 label = self.error.cget('text')
                 label = label + 'Trigger Latch enabled,\nTrigger Reset signal sent.\nPlease try again.\n'
@@ -215,9 +231,6 @@ class EB:
 
 
     def end_event(self):
-        # # Waiting for all RPis to finish...
-        # while not self.check_all_in_pins():
-        #     time.sleep(0.001)
         # Saving information
         f = open(curr_directory+'/info.txt', 'x+')
         f.write('Max Time: '+str(self.max_time)+'\n')
@@ -247,15 +260,23 @@ class EB:
             else: self.set_status_neutral(i+1)
         for i in range(len(SimOut)):
             GPIO.output(SimOut[i], GPIO.LOW)
-        for i in range(len(LEDPins)):
-            GPIO.output(LEDPins[i], GPIO.LOW)
-        self.send_trig_reset() # should this be up above in end_event?
+        self.disable_trig_enable()
+        self.send_trig_reset()
+        self.wait_for_end()
+
+    def wait_for_end(self):
+        if not self.check_all_in_pins():
+            self.master.after(5, self.wait_for_end)
+            print(self.check_all_in_pins())
+        else: self.reset_buttons()
+
+    def reset_buttons(self):
         self.buttonstart.grid_forget()
         self.buttonstart = ttk.Button(self.master, text='Start Event', command=self.run_event)
-        self.buttonstart.grid(row=2, column=0, padx=padx, pady=pady)
+        self.buttonstart.grid(row=12, column=0, padx=padx, pady=pady)
         self.buttonmantrig.grid_forget()
         self.buttonmantrig = ttk.Button(self.master, text='Stop Event', state=DISABLED)
-        self.buttonmantrig.grid(row=3, column=0, padx=padx, pady=pady)
+        self.buttonmantrig.grid(row=13, column=0, padx=padx, pady=pady)
 
 
     def leave(self):
@@ -276,6 +297,8 @@ def make_folder():
     except FileExistsError:
         print('Directory for today already exists')
 
+    # Determine how many folders events are already in the folder to 
+    # make a new folder with updated index
     index = 0
     for root, dirs, files in os.walk('/home/pi/camera-data/' + today):
         for d in dirs:
@@ -285,7 +308,7 @@ def make_folder():
     except Exception as e:
         print(e)
 
-    curr_directory = '/home/pi/camera-data/'+today+'/'+str(index)
+    curr_directory = '/home/pi/camera-data/'+ today +'/'+str(index)
 
     os.symlink(curr_directory, 'temp')
     os.rename('temp', '/home/pi/camera-data/Images')
@@ -294,7 +317,75 @@ def make_folder():
 
 
 ##############################################
-########### Tab 2: Image viewer ##############
+######### Tab 2: Camera Settings #############
+##############################################
+
+### Makes a new tab with several entry boxes to adjust the camera configX.json files. 
+### Makes three config files, one for each camera.
+
+ttk.Label(tab2, text='Exposure: ').grid(row=10, column=0, padx=padx, pady=pady)
+ttk.Label(tab2, text='Buffer Length: ').grid(row=11, column=0, padx=padx, pady=pady)
+ttk.Label(tab2, text='Frames After: ').grid(row=12, column=0, padx=padx, pady=pady)
+ttk.Label(tab2, text='ADC Threshold: ').grid(row=13, column=0, padx=padx, pady=pady)
+ttk.Label(tab2, text='Pixel Threshold: ').grid(row=14, column=0, padx=padx, pady=pady)
+
+exposure_spinbox = ttk.Spinbox(master=tab2, width=10, from_=0, to=10000, increment=10, format='%5.0f')
+exposure_spinbox.insert(0, 300)
+exposure_spinbox.grid(row=10, column=1)
+
+buffer_spinbox = ttk.Spinbox(master=tab2, width=10, from_=0, to=10000, increment=10, format='%5.0f')
+buffer_spinbox.insert(0, 100)
+buffer_spinbox.grid(row=11, column=1)
+
+fafter_spinbox = ttk.Spinbox(master=tab2, width=10, from_=0, to=10000, increment=10, format='%5.0f')
+fafter_spinbox.insert(0, 50)
+fafter_spinbox.grid(row=12, column=1)
+
+adc_spinbox = ttk.Spinbox(master=tab2, width=10, from_=0, to=10000, increment=10, format='%5.0f')
+adc_spinbox.insert(0, 10)
+adc_spinbox.grid(row=13, column=1)
+
+pix_spinbox = ttk.Spinbox(master=tab2, width=10, from_=0, to=10000, increment=10, format='%5.0f')
+pix_spinbox.insert(0, 300)
+pix_spinbox.grid(row=14, column=1)
+
+# Some values are set as their defaults and cannot be changed (yet) by the event builder
+config = {}
+def make_config(cam):
+    config['exposure'] = exposure_spinbox.get()
+    config["resolution"] = [1280,800]
+    config["frame_sync"] = True
+    config["mode"] = 11 #5
+    config["buffer_len"] = buffer_spinbox.get()
+    config["frames_after"] = fafter_spinbox.get()
+    config["adc_threshold"] = adc_spinbox.get()
+    config["pix_threshold"] = pix_spinbox.get()
+    config["save_path"] = "/mnt/event-builder/Images/"
+    config["cam_name"] = 'cam'+str(cam)
+    config["image_format"] = ".bmp"
+    config["date_format"] = "%Y-%m-%d_%H:%M:%S"
+    config["input_pins"] = {"state_com": 5,
+                            "trig_en": 6,
+                            "trig_latch": 13}
+    config["output_pins"] = {"state": 23,
+                            "trig": 24}
+
+def save_config():
+    for i in range(3):
+        config_path = '/home/pi/camera-data/config'+str(i)+'.json'
+        make_config(i)
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+    save_label = ttk.Label(tab2, text='Saved!')
+    save_label.grid(row=101, column=1, padx=padx, pady=pady)
+    save_label.after(1000, save_label.destroy)
+
+### When you hit the 'Save' button, overwrites the pre-existing config.json files or creates new ones
+save_button = ttk.Button(tab2, text='Save', command=save_config)
+save_button.grid(row=100, column=1, padx=padx, pady=pady)
+
+##############################################
+########### Tab 3: Image viewer ##############
 ##############################################
 baseheight = 200
 
@@ -329,11 +420,11 @@ def check():
     global img_1
     global img_2
     if len(image_list0) > 0 and len(image_list1) > 0 and len(image_list2) > 0:
-        img_0 = ttk.Label(tab2, image=image_list0[0])
+        img_0 = ttk.Label(tab3, image=image_list0[0])
         img_0.grid(row=0, column=0, columnspan=3, padx=padx, pady=pady)
-        img_1 = ttk.Label(tab2, image=image_list1[0])
+        img_1 = ttk.Label(tab3, image=image_list1[0])
         img_1.grid(row=0, column=3, columnspan=3, padx=padx, pady=pady)
-        img_2 = ttk.Label(tab2, image=image_list2[0])
+        img_2 = ttk.Label(tab3, image=image_list2[0])
         img_2.grid(row=0, column=6, columnspan=3, padx=padx, pady=pady)
         return True
     else: return False
@@ -354,7 +445,7 @@ def load_dir():
     image_buttons()
     back()
 
-button_select_dir = ttk.Button(tab2, text='Choose directory', command=load_dir)
+button_select_dir = ttk.Button(tab3, text='Choose directory', command=load_dir)
 button_select_dir.grid(row=1, column=4, padx=padx, pady=pady)
 
 image_number = 0
@@ -369,14 +460,14 @@ def image_buttons():
 
     if images_present:
         img_0.grid_forget()
-        img_0 = ttk.Label(tab2, image=image_list0[image_number])
+        img_0 = ttk.Label(tab3, image=image_list0[image_number])
         img_1.grid_forget()
-        img_1 = ttk.Label(tab2, image=image_list1[image_number])
+        img_1 = ttk.Label(tab3, image=image_list1[image_number])
         img_2.grid_forget()
-        img_2 = ttk.Label(tab2, image=image_list2[image_number])
+        img_2 = ttk.Label(tab3, image=image_list2[image_number])
 
-    button_forward = ttk.Button(tab2, text='>>', command=forward)
-    button_back = ttk.Button(tab2, text='<<', command=back)
+    button_forward = ttk.Button(tab3, text='>>', command=forward)
+    button_back = ttk.Button(tab3, text='<<', command=back)
 
     img_0.grid(row=0, column=0, columnspan=3, padx=padx, pady=pady)
     img_1.grid(row=0, column=3, columnspan=3, padx=padx, pady=pady)
@@ -392,7 +483,7 @@ def back(event=None): # place 'event=None' in parens for arrow keys
         image_number -= 1
         image_buttons()
     else:
-        button_back = ttk.Button(tab2, text='<<', state=DISABLED)
+        button_back = ttk.Button(tab3, text='<<', state=DISABLED)
         button_back.grid(row=1, column=3, padx=padx, pady=pady)
 
 def forward(event=None): # place 'event=None' in parens for arrow keys
@@ -402,7 +493,7 @@ def forward(event=None): # place 'event=None' in parens for arrow keys
     if (image_number < len(image_list0) and image_number < len(image_list1) and image_number < len(image_list2)):
         image_buttons()
     else:
-        button_forward = ttk.Button(tab2, text='>>', state=DISABLED)
+        button_forward = ttk.Button(tab3, text='>>', state=DISABLED)
         button_forward.grid(row=1, column=5, padx=padx, pady=pady)
 
 def leave():
@@ -415,12 +506,12 @@ def initialize_buttons():
     global images_present
     global button_back
     global button_forward
-    button_back = ttk.Button(tab2, text='<<', command=back, state=DISABLED)
-    button_quit = ttk.Button(tab2, text='Quit', command=leave)
+    button_back = ttk.Button(tab3, text='<<', command=back, state=DISABLED)
+    button_quit = ttk.Button(tab3, text='Quit', command=leave)
     if images_present:
-        button_forward = ttk.Button(tab2, text='>>', command=forward)
+        button_forward = ttk.Button(tab3, text='>>', command=forward)
     else:
-        button_forward = ttk.Button(tab2, text='>>', state=DISABLED)
+        button_forward = ttk.Button(tab3, text='>>', state=DISABLED)
     button_back.grid(row=1, column=3, padx=padx, pady=pady)
     button_quit.grid(row=2, column=4, padx=padx, pady=pady)
     button_forward.grid(row=1, column=5, padx=padx, pady=pady)
