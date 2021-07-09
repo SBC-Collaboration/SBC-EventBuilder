@@ -577,7 +577,8 @@ def image_buttons():
     global name_2
     global image_number
 
-    # If images present, load image_number image of each camera.
+    # If images present, load image_number image of each camera. 
+    # If a previous image was displayed, delete it and load the next image.
     if images_present:
         if name_0.winfo_exists():
             name_0.grid_forget()
@@ -597,7 +598,7 @@ def image_buttons():
         if img_2.winfo_exists():
             img_2.grid_forget()
         img_2 = ttk.Label(tab3, image=image_list2[image_number])
-        # Adding images onto the tkinter grid
+        # Adding images and names onto the tkinter grid
         name_0.grid(row=9, column=0, columnspan=3, padx=padx, pady=pady)
         name_1.grid(row=9, column=3, columnspan=3, padx=padx, pady=pady)
         name_2.grid(row=9, column=6, columnspan=3, padx=padx, pady=pady)
@@ -616,7 +617,13 @@ def image_buttons():
 def back(event=None):
     global image_number
     global button_back
-    if image_number > 0:
+    if image_number == 1:
+        image_number -= 1
+        image_buttons()
+        button_back.grid_forget()
+        button_back = ttk.Button(tab3, text='<<', state=DISABLED)
+        button_back.grid(row=11, column=3, padx=padx, pady=pady)
+    elif image_number > 0:
         image_number -= 1
         image_buttons()
     else:
@@ -627,12 +634,31 @@ def back(event=None):
 def forward(event=None):
     global image_number
     global button_forward
-    image_number += 1
-    if (image_number < len(image_list0) and image_number < len(image_list1) and image_number < len(image_list2)):
+    if ((image_number+2 == len(image_list0)) or (image_number+2 == len(image_list1)) or (image_number+2 == len(image_list2))):
+        image_number += 1
+        image_buttons()
+        button_forward.grid_forget()
+        button_forward = ttk.Button(tab3, text='>>', state=DISABLED)
+        button_forward.grid(row=11, column=5, padx=padx, pady=pady)
+    elif (image_number+1 < len(image_list0) and image_number+1 < len(image_list1) and image_number+1 < len(image_list2)):
+        image_number += 1
         image_buttons()
     else:
         button_forward = ttk.Button(tab3, text='>>', state=DISABLED)
         button_forward.grid(row=11, column=5, padx=padx, pady=pady)
+
+def forward2(event=None):
+    global image_number
+    global button_forward
+    image_number += 1
+    if image_number > len(image_list0) or image_number > len(image_list1) or image_number > len(image_list2):
+        image_buttons()
+        button_forward.grid_forget()
+        button_forward = ttk.Button(tab3, text='>>', state=DISABLED)
+        button_forward.grid(row=11, column=5, padx=padx, pady=pady)
+    else:
+        image_buttons()
+
 
 # Calls the same exit function as the main event_run tab
 def leave():
