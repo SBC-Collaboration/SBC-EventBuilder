@@ -16,7 +16,7 @@ import json
 # export DISPLAY=localhost:10.0
 
 # GPIO Setup
-SimOut        = [11, 13, 15] # Output signal to RPis
+StateCom      = [11, 13, 15] # Output signal to RPis
 InPins        = [18, 36, 40]
 TriggerEnable = [16, 32, 38]
 TriggerReset  = 22
@@ -29,8 +29,8 @@ GPIO.setmode(GPIO.BOARD) # use Physical GPIO Numbering
 GPIO.setup(InPins, GPIO.IN)
 GPIO.setup(TriggerEnable, GPIO.OUT)
 GPIO.output(TriggerEnable, GPIO.LOW)
-GPIO.setup(SimOut, GPIO.OUT)
-GPIO.output(SimOut, GPIO.LOW)
+GPIO.setup(StateCom, GPIO.OUT)
+GPIO.output(StateCom, GPIO.LOW)
 GPIO.setup(Error_LED, GPIO.OUT)
 GPIO.output(Error_LED, GPIO.LOW)
 GPIO.setup(Trig_0_LED, GPIO.OUT)
@@ -251,8 +251,8 @@ class EB:
         self.error.grid(row=25, column=0, padx=padx, pady=pady)
 
         # Output signal sent to RPis (state_com)
-        for i in range(len(SimOut)):
-            GPIO.output(SimOut[i], GPIO.HIGH)
+        for i in range(len(StateCom)):
+            GPIO.output(StateCom[i], GPIO.HIGH)
 
         # Check if trigger latch is enabled then check that all RPis are active
         self.send_trig_reset()
@@ -280,8 +280,8 @@ class EB:
             except ValueError:
                 self.error = ttk.Label(self.master, text='Error: Invalid input!')
                 self.error.grid(row=25, column=0, padx=padx, pady=pady)
-                for i in range(len(SimOut)):
-                    GPIO.output(SimOut[i], GPIO.LOW)
+                for i in range(len(StateCom)):
+                    GPIO.output(StateCom[i], GPIO.LOW)
 
         # If either of the above checks fail: reset error label, if the trig_latch is enabled, print 
         # --- error for trig_latch and send a trig_reset signal to reset latch. The user can then re-run 
@@ -345,8 +345,8 @@ class EB:
             if not GPIO.input(InPins[i]):
                 self.set_status_off(i)
             else: self.set_status_neutral(i)
-        for i in range(len(SimOut)):
-            GPIO.output(SimOut[i], GPIO.LOW)
+        for i in range(len(StateCom)):
+            GPIO.output(StateCom[i], GPIO.LOW)
         self.disable_trig_enable()
         GPIO.output(EndEvent, GPIO.HIGH)
         time.sleep(1)
@@ -583,10 +583,10 @@ class PI:
         self.button_reload = ttk.Button(tab3, text='Reload', command=self.reload)
         self.button_reload.grid(row=34, column=17, padx=padx, pady=pady)
 
-        ttk.Label(tab3, text='Frequency: ').grid(row=32, column=14, padx=padx, pady=pady)
-        self.frequency_spinbox = ttk.Spinbox(master=tab3, width=20, from_=0, to=10000, increment=10, format='%5.0f')
-        self.frequency_spinbox.insert(0, 1)
-        self.frequency_spinbox.grid(row=32, column=16, columnspan=3)
+        ttk.Label(tab3, text='Interval: ').grid(row=32, column=14, padx=padx, pady=pady)
+        self.interval_spinbox = ttk.Spinbox(master=tab3, width=20, from_=0, to=10000, increment=10, format='%5.0f')
+        self.interval_spinbox.insert(0, 1)
+        self.interval_spinbox.grid(row=32, column=16, columnspan=3)
 
         button_select_dir = ttk.Button(tab3, text='Choose directory', command=self.load_dir)
         button_select_dir.grid(row=33, column=17, padx=padx, pady=pady)
@@ -671,7 +671,7 @@ class PI:
                 self.img2.grid(row=11, column=20, columnspan=5, padx=padx, pady=pady)
             self.button_play.config(text='Pause', command=self.pause)
             self.img_number += 1
-            tab3.after(int(self.frequency_spinbox.get()), self.play)
+            tab3.after(int(self.interval_spinbox.get()), self.play)
         else: 
             self.button_play.config(text='Pause', command=self.pause)
             self.pause_state = False
@@ -695,7 +695,7 @@ class PI:
         if self.img_number < self.find_max() and self.active_state and not self.pause_state:
             self.scroll()
             self.img_number += 1
-            tab3.after(int(self.frequency_spinbox.get()), self.play)      
+            tab3.after(int(self.interval_spinbox.get()), self.play)      
         else:
             self.button_play.config(text='Play', command=self.init_play)
 
