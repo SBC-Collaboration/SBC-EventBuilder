@@ -1,6 +1,8 @@
 H264 Decoder Python Module
 ==========================
 
+Link: [https://github.com/DaWelter/h264decoder](https://github.com/DaWelter/h264decoder)
+
 The aim of this project is to provide a simple decoder for video
 captured by a Raspberry Pi camera. At the time of this writing I only
 need H264 decoding, since a H264 stream is what the RPi software 
