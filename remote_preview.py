@@ -1,5 +1,5 @@
 import sys
-from PySide2 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 import time
 import h264decoder
 import socket
@@ -13,7 +13,7 @@ import numpy as np
 # Requires https://github.com/DaWelter/h264decoder
 
 class StreamingThread(QtCore.QThread):
-    frame_received = QtCore.Signal(np.ndarray)
+    frame_received = QtCore.pyqtSignal(np.ndarray)
     
     def __init__(self):
         super(StreamingThread, self).__init__()
@@ -87,7 +87,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.streamingThread.frame_received.connect(self.update)
         self.streamingThread.start()
 
-    @QtCore.Slot(np.ndarray)
+    @QtCore.pyqtSlot(np.ndarray)
     def update(self, frame):
         # self.picture = QPixmap(f)
         img = QtGui.QImage(frame, 1280, 800, QtGui.QImage.Format_RGB888)
